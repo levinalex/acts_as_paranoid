@@ -195,6 +195,7 @@ class ParanoidTest < Test::Unit::TestCase
     assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.calculate_with_deleted(:count, :all) }
     if NAMED_SCOPE_TESTS
       assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted.count }
+      assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(true).count }
       assert_equal 0, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(false).count }
     end
   end
