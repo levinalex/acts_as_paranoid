@@ -160,8 +160,7 @@ module Caboose #:nodoc:
         end
 
         def recover!
-          self.deleted_at = nil
-          save!
+          update_attribute(:deleted_at, nil)
         end
       end
     end
