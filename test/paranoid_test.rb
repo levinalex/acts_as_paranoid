@@ -1,5 +1,7 @@
 require File.join(File.dirname(__FILE__), 'test_helper')
 
+NAMED_SCOPE_TESTS = ActiveRecord::Base.respond_to?(:named_scope)
+
 class Widget < ActiveRecord::Base
   acts_as_paranoid
   has_many :categories, :dependent => :destroy
@@ -42,15 +44,32 @@ end
 class ParanoidTest < Test::Unit::TestCase
   fixtures :widgets, :categories, :categories_widgets, :tags, :taggings
   
+  def test_should_exists_deleted
+    if NAMED_SCOPE_TESTS
+      assert Widget.deleted.exists?(2)
+    end
+  end
+  
   def test_should_exists_with_deleted
     assert Widget.exists_with_deleted?(2)
     assert !Widget.exists?(2)
+    if NAMED_SCOPE_TESTS
+      assert Widget.with_deleted.exists?(2)
+      assert Widget.with_deleted(true).exists?(2)
+      assert !Widget.with_deleted(false).exists?(2)
+    end
   end
 
   def test_should_count_with_deleted
     assert_equal 1, Widget.count
     assert_equal 2, Widget.count_with_deleted
     assert_equal 2, Widget.calculate_with_deleted(:count, :all)
+    if NAMED_SCOPE_TESTS
+      assert_equal 1, Widget.with_deleted(false).count
+      assert_equal 2, Widget.with_deleted(true).count
+      assert_equal 2, Widget.with_deleted.count
+      assert_equal 2, Widget.with_deleted(true).calculate_with_deleted(:count, :all)
+    end
   end
 
   def test_should_set_deleted_at
@@ -174,12 +193,22 @@ class ParanoidTest < Test::Unit::TestCase
     assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'widget 1'" }) { Widget.count }
     assert_equal 0, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.count }
     assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.calculate_with_deleted(:count, :all) }
+    if NAMED_SCOPE_TESTS
+      assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted.count }
+      assert_equal 1, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(true).count }
+      assert_equal 0, Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(false).count }
+    end
   end
 
   def test_should_not_override_scopes_when_finding
     assert_equal [1], Widget.send(:with_scope, :find => { :conditions => "title = 'widget 1'" }) { Widget.find(:all) }.ids
     assert_equal [],  Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.find(:all) }.ids
     assert_equal [2], Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.find_with_deleted(:all) }.ids
+    if NAMED_SCOPE_TESTS
+      assert_equal [2], Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted.find(:all) }.ids
+      assert_equal [2], Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(true).find(:all) }.ids
+      assert_equal [], Widget.send(:with_scope, :find => { :conditions => "title = 'deleted widget 2'" }) { Widget.with_deleted(false).find(:all) }.ids
+    end
   end
 
   def test_should_allow_multiple_scoped_calls_when_finding
@@ -197,6 +226,12 @@ class ParanoidTest < Test::Unit::TestCase
       assert_equal 1, Widget.calculate_with_deleted(:count, :all), "clobbers the constrain on the unmodified find"
       assert_equal 0, Widget.count
       assert_equal 0, Widget.count, 'clobbers the constrain on a paranoid find'
+      if NAMED_SCOPE_TESTS
+        assert_equal 1, Widget.with_deleted(true).calculate(:count, :all)
+        assert_equal 1, Widget.with_deleted(true).calculate(:count, :all), "clobbers the constrain on the unmodified find"
+        assert_equal 0, Widget.count
+        assert_equal 0, Widget.count, 'clobbers the constrain on a paranoid find'
+      end
     end
   end
 
@@ -236,6 +271,17 @@ class ParanoidTest < Test::Unit::TestCase
     assert_equal [1,2],     widgets(:widget_1).categories.search_with_deleted('c').ids
     assert_equal [],        w[2].categories.search('c').ids
     assert_equal [3,4],     w[2].categories.search_with_deleted('c').ids
+  end
+  
+  def test_should_recover
+    assert_equal 1, Widget.count
+    deleted = Widget.find_with_deleted(:all, :conditions => "deleted_at IS NOT NULL")
+    assert_equal 1, deleted.size
+    deleted.each do |widget|
+      assert      widget.recover!
+      assert_nil  widget.deleted_at
+    end
+    assert_equal 2, Widget.count
   end
 end
 
