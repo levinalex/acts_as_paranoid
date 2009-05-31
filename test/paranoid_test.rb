@@ -50,6 +50,16 @@ class ParanoidTest < Test::Unit::TestCase
     end
   end
   
+  def test_should_recognize_with_deleted_option
+    assert_equal [1, 2], Widget.find(:all, :with_deleted => true).collect { |w| w.id }
+    assert_equal [1], Widget.find(:all, :with_deleted => false).collect { |w| w.id }
+  end
+  
+  def test_should_recognize_only_deleted_option
+    assert_equal [2], Widget.find(:all, :only_deleted => true).collect { |w| w.id }
+    assert_equal [1], Widget.find(:all, :only_deleted => false).collect { |w| w.id }
+  end
+  
   def test_should_exists_with_deleted
     assert Widget.exists_with_deleted?(2)
     assert !Widget.exists?(2)
@@ -60,9 +70,15 @@ class ParanoidTest < Test::Unit::TestCase
     end
   end
 
+  def test_should_exists_only_deleted
+    assert Widget.exists_only_deleted?(2)
+    assert !Widget.exists_only_deleted?(1)
+  end
+
   def test_should_count_with_deleted
     assert_equal 1, Widget.count
     assert_equal 2, Widget.count_with_deleted
+    assert_equal 1, Widget.count_only_deleted
     assert_equal 2, Widget.calculate_with_deleted(:count, :all)
     if NAMED_SCOPE_TESTS
       assert_equal 1, Widget.with_deleted(false).count
@@ -88,6 +104,7 @@ class ParanoidTest < Test::Unit::TestCase
     widgets(:widget_1).destroy!
     assert_equal 0, Widget.count
     assert_equal 0, Category.count
+    assert_equal 1, Widget.count_only_deleted
     assert_equal 1, Widget.calculate_with_deleted(:count, :all)
     # Category doesn't get destroyed because the dependent before_destroy callback uses #destroy
     assert_equal 4, Category.calculate_with_deleted(:count, :all)
@@ -132,6 +149,12 @@ class ParanoidTest < Test::Unit::TestCase
     assert_equal 1, Widget.count
     assert_equal 1, Widget.count(:all, :conditions => ['title=?', 'widget 1'])
     assert_equal 2, Widget.calculate_with_deleted(:count, :all)
+    assert_equal 1, Widget.count_only_deleted
+  end
+  
+  def test_should_find_only_deleted
+    assert_equal [2], Widget.find_only_deleted(:all).collect { |w| w.id }
+    assert_equal [1, 2], Widget.find_with_deleted(:all, :order => 'id').collect { |w| w.id }
   end
   
   def test_should_not_find_deleted
@@ -282,6 +305,24 @@ class ParanoidTest < Test::Unit::TestCase
       assert_nil  widget.deleted_at
     end
     assert_equal 2, Widget.count
+  end
+  
+  def test_should_recover_record
+    Widget.find(1).destroy
+    assert_equal true, Widget.find_with_deleted(1).deleted? 
+    
+    Widget.find_with_deleted(1).recover!
+    assert_equal false, Widget.find(1).deleted?
+  end
+  
+  def test_should_recover_record_and_has_many_associations
+    Widget.find(1).destroy
+    assert_equal true, Widget.find_with_deleted(1).deleted?
+    assert_equal true, Category.find_with_deleted(1).deleted?
+    
+    Widget.find_with_deleted(1).recover_with_associations!(:categories)
+    assert_equal false, Widget.find(1).deleted?
+    assert_equal false, Category.find(1).deleted?
   end
 end
 
