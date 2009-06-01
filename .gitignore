@@ -1,2 +1,3 @@
 .dotest
 debug.log
+*.sqlite3.db

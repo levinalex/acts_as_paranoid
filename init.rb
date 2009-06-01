@@ -31,4 +31,5 @@ ActiveRecord::Base.send :include, Caboose::Acts::Paranoid
 ActiveRecord::Base.send :include, Caboose::Acts::ParanoidFindWrapper
 class << ActiveRecord::Base
   alias_method_chain :acts_as_paranoid, :find_wrapper
+  VALID_FIND_OPTIONS << :with_deleted
 end
